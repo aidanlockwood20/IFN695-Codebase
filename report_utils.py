@@ -212,3 +212,46 @@ def populate_state_level_datasets(generator_dirs):
                 vic_data = split_region(vic_data, region_data, 'VIC1')
 
     return nsw_data, qld_data, sa_data, tas_data, vic_data
+
+def extract_quarter_from_date(date_str):
+    """Extract quarter from date string in format YYYY-MM-DD"""
+    month = int(date_str.split('-')[1])
+    if month in [1, 2, 3]:
+        return 'Q1'
+    elif month in [4, 5, 6]:
+        return 'Q2'
+    elif month in [7, 8, 9]:
+        return 'Q3'
+    else:
+        return 'Q4'
+
+def create_yearly_quarterly_dataframe(state_neg_price_df, state_name):
+    """Create a DataFrame with yearly quarters for negative price occurrences"""
+    # Extract year and quarter from SETTLEMENTDATE
+    state_neg_price_df['YEAR'] = state_neg_price_df['SETTLEMENTDATE'].str[:4]
+    state_neg_price_df['QUARTER'] = state_neg_price_df['SETTLEMENTDATE'].apply(extract_quarter_from_date)
+    
+    # Count occurrences by year and quarter
+    quarterly_counts = state_neg_price_df.groupby(['YEAR', 'QUARTER']).size().reset_index(name='Count')
+    
+    # Pivot to get quarters as columns
+    pivot_df = quarterly_counts.pivot(index='YEAR', columns='QUARTER', values='Count').fillna(0)
+    
+    # Ensure all quarters are present as columns
+    for quarter in ['Q1', 'Q2', 'Q3', 'Q4']:
+        if quarter not in pivot_df.columns:
+            pivot_df[quarter] = 0
+    
+    # Reorder columns
+    pivot_df = pivot_df[['Q1', 'Q2', 'Q3', 'Q4']]
+    
+    # Convert to int (fillna ensures no NaN values)
+    pivot_df = pivot_df.astype(int)
+    
+    # Reset index to make YEAR a column
+    pivot_df.reset_index(inplace=True)
+    
+    # Add state identifier
+    pivot_df['State'] = state_name
+    
+    return pivot_df
